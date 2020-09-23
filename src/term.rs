@@ -35,20 +35,45 @@ use crate::canvas::Canvas;
 use crate::cell::Cell;
 use crate::draw::Draw;
 use crate::event::Event;
-use crate::input::{KeyBoard, KeyboardHandler};
+//use crate::input::{KeyBoard, KeyboardHandler};
 use crate::key::Key;
 use crate::output::Command;
 use crate::output::Output;
 use crate::raw::{get_tty, IntoRawMode};
 use crate::screen::Screen;
 use crate::spinlock::SpinLock;
-use crate::sys::signal::{initialize_signals, notify_on_sigwinch, unregister_sigwinch};
+//use crate::sys::signal::{initialize_signals, notify_on_sigwinch, unregister_sigwinch};
 
 pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 const MIN_HEIGHT: usize = 1;
 const WAIT_TIMEOUT: Duration = Duration::from_millis(300);
 const POLLING_TIMEOUT: Duration = Duration::from_millis(10);
+
+struct KeyBoard{}
+impl KeyBoard {
+    fn new_with_tty() -> Self {Self{}}
+    fn get_interrupt_handler(&self) -> KeyboardHandler{KeyboardHandler{}}
+    fn next_key(&self) -> Result<Key> {
+        if let crossterm::event::Event::Key(kev) = crossterm::event::read().unwrap() {
+            match kev {
+                crossterm::event::KeyEvent{
+                    code: crossterm::event::KeyCode::Char(c),
+                    ..
+                } => Ok(crate::key::Key::Char(c)),
+                _ => todo!()
+            }
+        } else {
+            todo!()
+        }
+    }
+}
+
+struct KeyboardHandler{}
+impl KeyboardHandler {
+    fn interrupt(&self) {}
+}
+
 
 #[derive(Debug)]
 pub enum TermHeight {
@@ -148,7 +173,7 @@ impl Term {
     /// let term = Term::with_options(TermOptions::default().height(TermHeight::Percent(100)));
     /// ```
     pub fn with_options(options: TermOptions) -> Result<Term> {
-        initialize_signals();
+//        initialize_signals();
 
         let (event_tx, event_rx) = channel();
         let ret = Term {
@@ -175,15 +200,17 @@ impl Term {
         keyboard: &mut KeyBoard,
         output: &mut Output,
     ) -> Result<(usize, usize)> {
-        output.ask_for_cpr();
+        let pos = crossterm::cursor::position().unwrap();
+        Ok((pos.0.into(), pos.1.into()))
+        // output.ask_for_cpr();
 
-        if let Ok(key) = keyboard.next_key_timeout(WAIT_TIMEOUT) {
-            if let Key::CursorPos(row, col) = key {
-                return Ok((row as usize, col as usize));
-            }
-        }
+        // if let Ok(key) = keyboard.next_key_timeout(WAIT_TIMEOUT) {
+        //     if let Key::CursorPos(row, col) = key {
+        //         return Ok((row as usize, col as usize));
+        //     }
+        // }
 
-        Ok((0, 0))
+        // Ok((0, 0))
     }
 
     /// restart the terminal if it had been stopped
@@ -236,7 +263,7 @@ impl Term {
         // wait for the components to stop
         // i.e. key_listener & size_change_listener
         self.keyboard_handler.lock().take().map(|h| h.interrupt());
-        unregister_sigwinch(self.resize_signal_id.load(Ordering::Relaxed)).map(|tx| tx.send(()));
+//        unregister_sigwinch(self.resize_signal_id.load(Ordering::Relaxed)).map(|tx| tx.send(()));
 
         termlock.pause()?;
 
@@ -278,26 +305,26 @@ impl Term {
         let resize_signal_id = self.resize_signal_id.clone();
         let components_to_stop = self.components_to_stop.clone();
 
-        thread::spawn(move || {
-            let (id, sigwinch_rx) = notify_on_sigwinch();
-            resize_signal_id.store(id, Ordering::Relaxed);
+        // thread::spawn(move || {
+        //     let (id, sigwinch_rx) = notify_on_sigwinch();
+        //   resize_signal_id.store(id, Ordering::Relaxed);
 
-            components_to_stop.fetch_add(1, Ordering::SeqCst);
-            debug!("size change listener started");
-            loop {
-                if let Ok(_) = sigwinch_rx.recv() {
-                    let event_tx = event_tx_clone.lock();
-                    let _ = event_tx.send(Event::Resize {
-                        width: 0,
-                        height: 0,
-                    });
-                } else {
-                    break;
-                }
-            }
-            components_to_stop.fetch_sub(1, Ordering::SeqCst);
-            debug!("size change listener stop");
-        });
+        //     components_to_stop.fetch_add(1, Ordering::SeqCst);
+        //     debug!("size change listener started");
+        //     loop {
+        //         if let Ok(_) = sigwinch_rx.recv() {
+        //             let event_tx = event_tx_clone.lock();
+        //             let _ = event_tx.send(Event::Resize {
+        //                 width: 0,
+        //                 height: 0,
+        //             });
+        //         } else {
+        //             break;
+        //         }
+        //     }
+        //     components_to_stop.fetch_sub(1, Ordering::SeqCst);
+        //     debug!("size change listener stop");
+        // });
     }
 
     fn filter_event(&self, event: Event) -> Event {

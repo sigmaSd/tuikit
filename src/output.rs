@@ -15,7 +15,7 @@
 
 use std::io;
 use std::io::Write;
-use std::os::unix::io::AsRawFd;
+//use std::os::unix::io::AsRawFd;
 
 use crate::attr::{Attr, Color, Effect};
 use crate::sys::size::terminal_size;
@@ -37,9 +37,9 @@ pub struct Output {
     terminfo: TermInfo,
 }
 
-pub trait WriteAndAsRawFdAndSend: Write + AsRawFd + Send {}
+pub trait WriteAndAsRawFdAndSend: Write + Send {}
 
-impl<T> WriteAndAsRawFdAndSend for T where T: Write + AsRawFd + Send {}
+impl<T> WriteAndAsRawFdAndSend for T where T: Write + Send {}
 
 impl Output {
     pub fn new(stdout: Box<dyn WriteAndAsRawFdAndSend>) -> io::Result<Self> {
@@ -290,7 +290,7 @@ impl Output {
 
     /// get terminal size (width, height)
     pub fn terminal_size(&self) -> io::Result<(usize, usize)> {
-        terminal_size(self.stdout.as_raw_fd())
+        terminal_size()
     }
 
     /// For vt100/xterm etc.
