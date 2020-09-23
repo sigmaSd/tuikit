@@ -45,18 +45,18 @@ pub fn get_tty() -> io::Result<fs::File> {
 /// dropped.
 ///
 /// Restoring will entirely bring back the old TTY state.
-pub struct RawTerminal<W: Write  > {
+pub struct RawTerminal<W: Write> {
     prev_ios: (),
     output: W,
 }
 
-impl<W: Write  > Drop for RawTerminal<W> {
+impl<W: Write> Drop for RawTerminal<W> {
     fn drop(&mut self) {
         //let _ = tcsetattr(self.output.as_raw_fd(), SetArg::TCSANOW, &self.prev_ios);
     }
 }
 
-impl<W: Write  > ops::Deref for RawTerminal<W> {
+impl<W: Write> ops::Deref for RawTerminal<W> {
     type Target = W;
 
     fn deref(&self) -> &W {
@@ -64,13 +64,13 @@ impl<W: Write  > ops::Deref for RawTerminal<W> {
     }
 }
 
-impl<W: Write  > ops::DerefMut for RawTerminal<W> {
+impl<W: Write> ops::DerefMut for RawTerminal<W> {
     fn deref_mut(&mut self) -> &mut W {
         &mut self.output
     }
 }
 
-impl<W: Write  > Write for RawTerminal<W> {
+impl<W: Write> Write for RawTerminal<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.output.write(buf)
     }
@@ -92,7 +92,7 @@ impl<W: Write  > Write for RawTerminal<W> {
 ///
 /// TTYs has their state controlled by the writer, not the reader. You use the writer to clear the
 /// screen, move the cursor and so on, so naturally you use the writer to change the mode as well.
-pub trait IntoRawMode: Write   + Sized {
+pub trait IntoRawMode: Write + Sized {
     /// Switch to raw mode.
     ///
     /// Raw mode means that stdin won't be printed (it will instead have to be written manually by
@@ -101,13 +101,13 @@ pub trait IntoRawMode: Write   + Sized {
     fn into_raw_mode(self) -> io::Result<RawTerminal<Self>>;
 }
 
-impl<W: Write  > IntoRawMode for W {
+impl<W: Write> IntoRawMode for W {
     // modified after https://github.com/kkawakam/rustyline/blob/master/src/tty/unix.rs#L668
     // refer: https://linux.die.net/man/3/termios
     fn into_raw_mode(self) -> io::Result<RawTerminal<W>> {
         crossterm::terminal::enable_raw_mode();
         Ok(RawTerminal {
-            prev_ios:(),
+            prev_ios: (),
             output: self,
         })
         // use nix::errno::Errno::ENOTTY;

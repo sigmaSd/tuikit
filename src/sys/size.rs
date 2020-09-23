@@ -13,7 +13,7 @@ struct TermSize {
 
 /// Get the size of the terminal.
 pub fn terminal_size() -> io::Result<(usize, usize)> {
-    let (x,y) = crossterm::terminal::size().unwrap();
+    let (x, y) = crossterm::terminal::size().unwrap();
     Ok((x.into(), y.into()))
     // unsafe {
     //     let mut size: TermSize = mem::zeroed();

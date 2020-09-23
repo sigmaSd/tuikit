@@ -20,13 +20,25 @@ use std::io::Write;
 use crate::attr::{Attr, Color, Effect};
 use crate::sys::size::terminal_size;
 
-use term::terminfo::parm::{expand, Param, Variables};
-use term::terminfo::TermInfo;
-
 // modeled after python-prompt-toolkit
 // term info: https://ftp.netbsd.org/pub/NetBSD/NetBSD-release-7/src/share/terminfo/terminfo
+use term::terminfo::parm::{expand, Param, Variables};
 
 const DEFAULT_BUFFER_SIZE: usize = 1024;
+
+use std::collections::HashMap;
+struct TermInfo {
+    names: Vec<String>,
+    strings: HashMap<String, Vec<u8>>,
+}
+impl TermInfo {
+    fn new() -> Self {
+        Self {
+            names: vec![],
+            strings: HashMap::new(),
+        }
+    }
+}
 
 /// Output is an abstraction over the ANSI codes.
 pub struct Output {
@@ -46,7 +58,7 @@ impl Output {
         Result::Ok(Self {
             buffer: Vec::with_capacity(DEFAULT_BUFFER_SIZE),
             stdout,
-            terminfo: TermInfo::from_env()?,
+            terminfo: TermInfo::new(),
         })
     }
 
@@ -134,9 +146,9 @@ impl Output {
 
     /// Disable mouse.
     pub fn disable_mouse_support(&mut self) {
-        self.write_raw("\x1b[?1000l".as_bytes());
-        self.write_raw("\x1b[?1015l".as_bytes());
-        self.write_raw("\x1b[?1006l".as_bytes());
+        // self.write_raw("\x1b[?1000l".as_bytes());
+        // self.write_raw("\x1b[?1015l".as_bytes());
+        // self.write_raw("\x1b[?1006l".as_bytes());
     }
 
     /// Erases from the current cursor position to the end of the current line.
@@ -174,7 +186,7 @@ impl Output {
     pub fn set_bg(&mut self, color: Color) {
         match color {
             Color::Default => {
-                self.write_raw("\x1b[49m".as_bytes());
+                //self.write_raw("\x1b[49m".as_bytes());
             }
             Color::AnsiValue(x) => {
                 self.write_cap_with_params("setab", &[Param::Number(x as i32)]);
@@ -306,12 +318,23 @@ impl Output {
     ///  Execute the command
     pub fn execute(&mut self, cmd: Command) {
         match cmd {
-            Command::PutChar(c) => self.write(c.to_string().as_str()),
-            Command::Write(content) => self.write(&content),
+            Command::PutChar(c) => {
+                crossterm::queue!(std::io::stdout(), crossterm::style::Print(c));
+            } //self.write(c.to_string().as_str()),
+            Command::Write(content) => {
+                crossterm::queue!(std::io::stdout(), crossterm::style::Print(content));
+            } //self.write(&content),
             Command::SetTitle(title) => self.set_title(&title),
             Command::ClearTitle => self.clear_title(),
-            Command::Flush => self.flush(),
-            Command::EraseScreen => self.erase_screen(),
+            Command::Flush => {
+                std::io::stdout().flush();
+            } //self.flush(),
+            Command::EraseScreen => {
+                crossterm::queue!(
+                    std::io::stdout(),
+                    crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
+                );
+            } //self.erase_screen(),
             Command::AlternateScreen(enable) => {
                 if enable {
                     self.enter_alternate_screen()
@@ -326,9 +349,19 @@ impl Output {
                     self.disable_mouse_support();
                 }
             }
-            Command::EraseEndOfLine => self.erase_end_of_line(),
-            Command::EraseDown => self.erase_down(),
-            Command::ResetAttributes => self.reset_attributes(),
+            Command::EraseEndOfLine => {
+                crossterm::queue!(
+                    std::io::stdout(),
+                    crossterm::terminal::Clear(crossterm::terminal::ClearType::UntilNewLine)
+                );
+            }
+            Command::EraseDown => {
+                crossterm::queue!(
+                    std::io::stdout(),
+                    crossterm::terminal::Clear(crossterm::terminal::ClearType::FromCursorDown)
+                );
+            } //self.erase_down(),
+            Command::ResetAttributes => {} //self.reset_attributes(),
             Command::Fg(fg) => self.set_fg(fg),
             Command::Bg(bg) => self.set_bg(bg),
             Command::Effect(effect) => self.set_effect(effect),
@@ -340,16 +373,45 @@ impl Output {
                     self.disable_autowrap();
                 }
             }
-            Command::CursorGoto { row, col } => self.cursor_goto(row, col),
-            Command::CursorUp(amount) => self.cursor_up(amount),
-            Command::CursorDown(amount) => self.cursor_down(amount),
-            Command::CursorLeft(amount) => self.cursor_backward(amount),
-            Command::CursorRight(amount) => self.cursor_forward(amount),
+            Command::CursorGoto { row, col } => {
+                crossterm::queue!(
+                    std::io::stdout(),
+                    crossterm::cursor::MoveTo(row as u16, col as u16)
+                );
+            } //self.cursor_goto(row, col),
+            Command::CursorUp(amount) => {
+                crossterm::queue!(std::io::stdout(), crossterm::cursor::MoveUp(amount as u16));
+            } //self.cursor_up(amount),
+            Command::CursorDown(amount) => {
+                crossterm::execute!(
+                    std::io::stdout(),
+                    crossterm::cursor::MoveDown(amount as u16)
+                );
+            } //self.cursor_down(amount),
+            Command::CursorLeft(amount) => {
+                crossterm::queue!(
+                    std::io::stdout(),
+                    crossterm::cursor::MoveLeft(amount as u16)
+                );
+            } //self.cursor_backward(amount),
+            Command::CursorRight(amount) => {
+                crossterm::queue!(
+                    std::io::stdout(),
+                    crossterm::cursor::MoveRight(amount as u16)
+                );
+            } //self.cursor_forward(amount),
             Command::CursorShow(show) => {
                 if show {
-                    self.show_cursor()
+                    {
+                        crossterm::queue!(std::io::stdout(), crossterm::cursor::Show {});
+                    }
+                //self.show_cursor()
                 } else {
-                    self.hide_cursor()
+                    {
+                        crossterm::queue!(std::io::stdout(), crossterm::cursor::Hide {});
+                    }
+
+                    //self.hide_cursor()
                 }
             }
             Command::BracketedPaste(enable) => {

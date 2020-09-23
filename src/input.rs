@@ -14,7 +14,6 @@
 // use std::sync::Arc;
 // use std::time::Duration;
 
-
 // use crate::key::Key::*;
 // use crate::key::{Key, MouseButton};
 // use crate::raw::get_tty;

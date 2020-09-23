@@ -50,18 +50,22 @@ const MIN_HEIGHT: usize = 1;
 const WAIT_TIMEOUT: Duration = Duration::from_millis(300);
 const POLLING_TIMEOUT: Duration = Duration::from_millis(10);
 
-struct KeyBoard{}
+struct KeyBoard {}
 impl KeyBoard {
-    fn new_with_tty() -> Self {Self{}}
-    fn get_interrupt_handler(&self) -> KeyboardHandler{KeyboardHandler{}}
+    fn new_with_tty() -> Self {
+        Self {}
+    }
+    fn get_interrupt_handler(&self) -> KeyboardHandler {
+        KeyboardHandler {}
+    }
     fn next_key(&self) -> Result<Key> {
         if let crossterm::event::Event::Key(kev) = crossterm::event::read().unwrap() {
             match kev {
-                crossterm::event::KeyEvent{
+                crossterm::event::KeyEvent {
                     code: crossterm::event::KeyCode::Char(c),
                     ..
                 } => Ok(crate::key::Key::Char(c)),
-                _ => todo!()
+                _ => todo!(),
             }
         } else {
             todo!()
@@ -69,11 +73,10 @@ impl KeyBoard {
     }
 }
 
-struct KeyboardHandler{}
+struct KeyboardHandler {}
 impl KeyboardHandler {
     fn interrupt(&self) {}
 }
-
 
 #[derive(Debug)]
 pub enum TermHeight {
@@ -173,7 +176,7 @@ impl Term {
     /// let term = Term::with_options(TermOptions::default().height(TermHeight::Percent(100)));
     /// ```
     pub fn with_options(options: TermOptions) -> Result<Term> {
-//        initialize_signals();
+        //        initialize_signals();
 
         let (event_tx, event_rx) = channel();
         let ret = Term {
@@ -188,7 +191,7 @@ impl Term {
     }
 
     fn ensure_not_stopped(&self) -> Result<()> {
-        if self.components_to_stop.load(Ordering::SeqCst) == 2 {
+        if self.components_to_stop.load(Ordering::SeqCst) == 1 {
             Ok(())
         } else {
             Err("Terminal had been paused, should `restart` to use".into())
@@ -220,21 +223,24 @@ impl Term {
             return Ok(());
         }
 
-        let ttyout = get_tty()?.into_raw_mode()?;
-        let mut output = Output::new(Box::new(ttyout))?;
+        //let ttyout = get_tty()?.into_raw_mode()?;
+        //let mut output = Output::new(Box::new(ttyout))?;
+        let mut output = Output::new(Box::new(std::io::stdout()))?;
+
         let mut keyboard = KeyBoard::new_with_tty();
         self.keyboard_handler
             .lock()
             .replace(keyboard.get_interrupt_handler());
         let cursor_pos = self.get_cursor_pos(&mut keyboard, &mut output)?;
+
         termlock.restart(output, cursor_pos)?;
 
         // start two listener
         self.start_key_listener(keyboard);
-        self.start_size_change_listener();
+        //self.start_size_change_listener();
 
         // wait for components to start
-        while self.components_to_stop.load(Ordering::SeqCst) < 2 {
+        while self.components_to_stop.load(Ordering::SeqCst) < 1 {
             debug!(
                 "restart: components: {}",
                 self.components_to_stop.load(Ordering::SeqCst)
@@ -263,7 +269,7 @@ impl Term {
         // wait for the components to stop
         // i.e. key_listener & size_change_listener
         self.keyboard_handler.lock().take().map(|h| h.interrupt());
-//        unregister_sigwinch(self.resize_signal_id.load(Ordering::Relaxed)).map(|tx| tx.send(()));
+        //        unregister_sigwinch(self.resize_signal_id.load(Ordering::Relaxed)).map(|tx| tx.send(()));
 
         termlock.pause()?;
 
@@ -566,6 +572,8 @@ impl TermLock {
     pub fn present(&mut self) -> Result<()> {
         let output = self.output.as_mut().ok_or("term had been stopped")?;
         let mut commands = self.screen.present();
+
+        //dbg!(&commands);
 
         let cursor_row = self.cursor_row;
         // add cursor_row to all CursorGoto commands
